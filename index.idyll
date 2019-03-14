@@ -1,0 +1,201 @@
+[meta
+  title:"Idyll Tutorial: Triggering Updates"
+  description:"How to update components in response to user events."
+  shareImageUrl:"https://idyll.pub/post/triggering-updates-22d46bef1e64218d16f2a97b/static/images/share.png"
+  shareImageWidth:"1810"
+  shareImageHeight:"854" /]
+
+[Header
+  title:"Idyll Tutorial: Triggering Updates"
+  fullWidth:true
+  subtitle:"Updating components in response to user events."
+  author:"Matthew Conlen"
+  date:"February 15, 2019"
+  authorLink:"https://idyll-lang.org" /]
+
+
+[Idyll](https://idyll-lang.org/) comes with many useful [built-in components](https://idyll-lang.org/docs/components)
+such as buttons and sliders, but the real power comes when you combine
+Idyll's reactive markup with your own custom JavaScript components. In this short guide
+I'll cover two methods of triggering updates on custom components.
+
+
+## Watching for updates
+
+With Idyll you can write declarative components using React, or use the [D3Component](https://idyll-lang.github.io/idyll-d3-component/) to have more direct control over the DOM.
+If you are using React components, the typical strategy is define a parameterized template using the
+`render` function and let React do the heavy lifting in terms of keeping the DOM up to date with the latest
+properties.
+
+For example, I could define a simple React component like,
+
+```js
+
+class SimpleComponent extends React.Component {
+  render() {
+    return <div style={{
+      width: 50,
+      height: 50,
+      background: this.props.color
+    }}> </div>
+  }
+}
+```
+
+which will draw a 50x50 pixel square with a parameterizable color. To invoke it in Idyll you could do something like this:
+
+```
+[SimpleComponent color:"#45ff00" /]
+```
+
+Output:
+
+[SimpleComponent color:"#45ff00" /]
+
+This is boring, but with a small tweak you can acheive something interactive:
+
+```
+[var name:"color" value:"#45ff00" /]
+Color: [TextInput value:color /]
+[SimpleComponent color:color /]
+```
+
+Output:
+
+[var name:"color" value:"#45ff00" /]
+Color: [TextInput value:color /]
+[SimpleComponent color:color /]
+
+Change the color value to any valid CSS string (e.g. `blue`, `#ddd`, `rgba(125, 255, 128, 0.6)`) and watch the square update in response.
+
+While this works well for many components, there are some cases where you want to have more control. For example if you are
+drawing to a canvas in a render loop, you may want to trigger some function or update a local variable in the component when a property changes.
+
+In these cases, you can take advantage of React's `componentDidUpdate` method to watch for updates to the properties, and handle them accoringly. For example, say that instead of directly specifying the color of the square, the color is randomly assigned, and
+we want to be able to trigger a new random color being displayed. In that case, we could define our component like this:
+
+
+```js
+
+class RandomComponent extends React.Component {
+
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      color: `rgba(
+        ${Math.round(Math.random() * 255)},
+        ${Math.round(Math.random() * 255)},
+        ${Math.round(Math.random() * 255)},
+        ${Math.random()}
+      )`
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.props.updateColor !== prevProps.updateColor) {
+      this.setState({
+        color: `rgba(
+          ${Math.round(Math.random() * 255)},
+          ${Math.round(Math.random() * 255)},
+          ${Math.round(Math.random() * 255)},
+          ${Math.random()}
+        )`
+      })
+    }
+  }
+
+  render() {
+    return <div style={{
+      width: 50,
+      height: 50,
+      background: this.state.color
+    }}> </div>
+  }
+}
+```
+
+The code above defines a component that will choose a new random color any time the property `updateColor` changes. So
+to trigger updates in Idyll, we can write code like this:
+
+```
+[var name:"updateColor" value:0 /]
+
+[Button onClick:`updateColor++ ` ]
+ Randomize Color
+[/Button]
+
+[RandomComponent updateColor:updateColor /]
+```
+[var name:"updateColor" value:0 /]
+
+[Button onClick:`updateColor++ ` ]
+ Randomize Color
+[/Button]
+
+[RandomComponent updateColor:updateColor /]
+
+If using the `D3Component` you can apply similar code to the `update()` function to watch for changes to the specific variables and respond accordingly.
+
+## Triggering methods directly
+
+If this seems a bit roundabout and you just want to call a method on your component, there is another way.
+You can use [Idyll's references](https://idyll-lang.org/docs/components/scrolling-and-refs) to get a handle
+to the component instance in the markup, and call function directly that way.
+
+For example, imagine if we defined our randomized color square this way:
+
+```js
+
+class RandomComponent extends React.Component {
+
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      color: this.getRandomColor()
+    }
+  }
+
+  getRandomColor() {
+    return `rgba(
+      ${Math.round(Math.random() * 255)},
+      ${Math.round(Math.random() * 255)},
+      ${Math.round(Math.random() * 255)},
+      ${Math.random()}
+    )`;
+  }
+
+  updateColor() {
+    this.setState({
+      color: this.getRandomColor()
+    })
+  }
+
+  render() {
+    return <div style={{
+      width: 50,
+      height: 50,
+      background: this.state.color
+    }}> </div>
+  }
+}
+```
+
+Then, instead of using an Idyll variable to trigger an update, you could instead do this:
+
+```
+[Button onClick:`refs.mySquare.component.updateColor() ` ]
+ Randomize Color
+[/Button]
+
+[UpdateComponent ref:"mySquare" /]
+```
+
+[Button onClick:`refs.mySquare.component.updateColor() ` ]
+ Randomize Color
+[/Button]
+
+[UpdateComponent ref:"mySquare"  /]
+
+To use this feature you'll want to make sure that your using Idyll version `3.14.0` or later.
